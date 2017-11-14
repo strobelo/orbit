@@ -17,6 +17,7 @@ class RandomAgent(object):
 
 class QPAgent(object):
     def __init__(self, action_space, initial_state,qLayers=3, pLayers=3, use_cuda=True, qlr=0.01, plr=0.01):
+        self.tensorType = tensors[use_cuda]
         self.action_space = action_space
         self.qlr, self.plr = qlr, plr
         self.Q = Reltan(initial_state.shape[1]+1, h=10, o=1, layers=qLayers)
@@ -31,14 +32,15 @@ class QPAgent(object):
         return self.action_space.sample()
 
     def oa2qin(observations, actions):
-        return tensors[use_cuda](np.hstack(observations,actions.reshape(actions.shape[0],1)))
+        return self.tensorType(np.hstack(observations,actions.reshape(actions.shape[0],1)))
 
     def trainQ(self, observations, actions, rewards):
     	if observations.shape[0] is not rewards.shape[0]:
     		raise ValueError('shape[0]s do not match; rows of observations and rewards must align')
         qx = oa2qin(observations,actions)
-        qpred = Q(qx)[1:]
-        qy = qpred + self.qlr * (rewards + None ) # this is where you left off
+        qpred = Q(qx)
+        qprev = torch.cat((qpred[1:],self.tensorType([0]))) # add a zero at the end (will throw away this row after doing tensor math)
+        qy = qprev + self.qlr * (rewards -  qpred) # this is where you left off
 		#train Q
 		#train R
 		
