@@ -49,7 +49,7 @@ if __name__ == '__main__':
     # will be namespaced). You can also dump to a tempdir if you'd
     # like: tempfile.mkdtemp().
     outdir = '/tmp/random-agent-results'
-    env = wrappers.Monitor(env, directory=outdir, force=True)
+    #env = wrappers.Monitor(env, directory=outdir, force=True)
     rewards = []
     for i in range(episode_count):
         ob = env.reset()
