@@ -38,7 +38,7 @@ if __name__ == '__main__':
     env = gym.make(args.env_id)
 
     env.seed(0)
-    agent = QAgent(env.action_space, env.observation_space, use_cuda=False)
+    agent = QAgent(env.action_space, env.observation_space, use_cuda=True)
 
     episode_count = 100
     reward = 0
