@@ -50,20 +50,26 @@ if __name__ == '__main__':
     # like: tempfile.mkdtemp().
     outdir = '/tmp/random-agent-results'
     #env = wrappers.Monitor(env, directory=outdir, force=True)
-    rewards = []
+    allRewards = []
+    observations, rewards, actions = [],[],[]
     for i in range(episode_count):
         ob = env.reset()
         while True:
-            action = agent.act(ob, reward, epsilon=1)
+            action = agent.act(ob, reward, epsilon=1, trainQIter=False)
             ob, reward, done, _ = env.step(action)
+            observations.append(ob)
             rewards.append(reward)
+            actions.append(action)
+            allRewards.append(reward)
             if done:
                 break
+        agent.trainQ(observations,actions,rewards,50)
+        observations, rewards, actions = [],[],[]
             # Note there's no env.render() here. But the environment still can open window and
             # render if asked by env.monitor: it calls env.render('rgb_array') to record video.
             # Video is not recorded every episode, see capped_cubic_video_schedule for details.
     # Close the env and write monitor result info to disk
-    print('Average Reward over 100 episodes: {}'.format(sum(rewards)/len(rewards)))
+    print('Average Reward over 100 episodes: {}'.format(sum(allRewards)/len(allRewards)))
     env.close()
 
 

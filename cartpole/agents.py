@@ -34,6 +34,8 @@ class QAgent(object):
         self.action_space = action_space
         self.qlr = qlr
         self.Q = Reltan(observation_space.sample().shape[0] + 1, h=2, o=1, layers=qLayers)
+        if self.use_cuda:
+            self.Q = self.Q.cuda()
         self.prev = {'observation':None, 'reward':None, 'action':None}
 
     def act(self, observation, reward, maximize=True, epsilon=None, trainQIter=50):
@@ -74,6 +76,7 @@ class QAgent(object):
             raise ValueError(
                 'shape[0]s do not match; rows of observations and rewards must align')
         qx = self.oa2qin(observations, actions)
+
         qprev = self.Q(qx)
         # add a zero at the end (will throw away this row after doing tensor
         # math)
@@ -81,6 +84,7 @@ class QAgent(object):
         qy = qcur.data + self.qlr * (rewards - qprev.data)
         qy = Variable(qy[:-1], requires_grad=False)  # remove that row at the end
         # train Q
+        pdb.set_trace()
         _train(self.Q, qx, qy, nIter, self.use_cuda)
         #self.epsilon = self.eld * observations.shape[0] * self.epsilon
 
@@ -88,10 +92,10 @@ class QAgent(object):
 def _train(model, x, y, nIter, use_cuda=True):
     # x = Variable(torch.FloatTensor(x))
     # y = Variable(torch.FloatTensor(y), requires_grad=False)
-    if torch.cuda.is_available() and use_cuda:
-        model = model.cuda()
-        x = x.type(torch.cuda.FloatTensor)
-        y = y.type(torch.cuda.FloatTensor)
+    # if torch.cuda.is_available() and use_cuda:
+    #     model = model.cuda()
+    #     x = x.type(torch.cuda.FloatTensor)
+    #     y = y.type(torch.cuda.FloatTensor)
 
     criterion = torch.nn.MSELoss(size_average=False)
     optimizer = torch.optim.SGD(model.parameters(), lr=1e-4)
