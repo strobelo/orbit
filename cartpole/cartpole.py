@@ -1,7 +1,8 @@
 import argparse
 import logging
 import sys
-
+import matplotlib.pyplot as plt
+import numpy as np
 import gym
 from gym import wrappers
 
@@ -38,7 +39,7 @@ if __name__ == '__main__':
     env = gym.make(args.env_id)
 
     env.seed(0)
-    agent = QAgent(env.action_space, env.observation_space, use_cuda=True)
+    agent = QAgent(env.action_space, env.observation_space, use_cuda=True, qlr=0.2, qLayers=10, qhidden=20)
 
     episode_count = 100
     reward = 0
@@ -48,28 +49,36 @@ if __name__ == '__main__':
     # directory, including one with existing data -- all monitor files
     # will be namespaced). You can also dump to a tempdir if you'd
     # like: tempfile.mkdtemp().
-    outdir = '/tmp/random-agent-results'
-    #env = wrappers.Monitor(env, directory=outdir, force=True)
+    outdir = '/tmp/qlr-results'
+    env = wrappers.Monitor(env, directory=outdir, force=True)
     allRewards = []
     observations, rewards, actions = [],[],[]
     for i in range(episode_count):
         ob = env.reset()
         while True:
-            action = agent.act(ob, reward, epsilon=1, trainQIter=False)
+            action = agent.act(ob, reward, trainQIter=None)
             ob, reward, done, _ = env.step(action)
             observations.append(ob)
             rewards.append(reward)
             actions.append(action)
-            allRewards.append(reward)
             if done:
                 break
-        agent.trainQ(observations,actions,rewards,50)
+        agent.trainQ(observations,actions,rewards,10)
+        allRewards.append(sum(rewards))
         observations, rewards, actions = [],[],[]
+
             # Note there's no env.render() here. But the environment still can open window and
             # render if asked by env.monitor: it calls env.render('rgb_array') to record video.
             # Video is not recorded every episode, see capped_cubic_video_schedule for details.
     # Close the env and write monitor result info to disk
-    print('Average Reward over 100 episodes: {}'.format(sum(allRewards)/len(allRewards)))
+    r = np.array(allRewards)
+    print('Average Reward over 100 episodes: {}'.format(np.mean(r)))
+    fig,ax=plt.subplots(1,2)
+    ax[0].plot(r)
+    ax[1].plot(agent.lossTrace)
+    ax[1].set_title('Loss Trace')
+    fig.show()
+    plt.show()
     env.close()
 
 
