@@ -59,9 +59,10 @@ class QAgent(object):
     Action space must be Discrete
     '''
 
-    def __init__(self, action_space, observation_space, qLayers=10, qhidden=30, use_cuda=True, qlr=0.1, eld=0.99, gammaF=lambda x:0.1):
-        self.replay = ExperienceReplay(10000)
-        self.gamma = 0.1
+    def __init__(self, action_space, observation_space, qLayers=10, qhidden=30, use_cuda=True, qlr=0.1, eld=0.9999, gammaF=lambda x:0.9, replaySize=10000, epsMin=0.05):
+        self.epsMin = epsMin
+        self.replay = ExperienceReplay(replaySize)
+        self.gamma = gammaF(0)
         self.gammaF = gammaF
         self.use_cuda = (use_cuda and torch.cuda.is_available())
         self.tensorType = tensors[self.use_cuda]
@@ -71,7 +72,7 @@ class QAgent(object):
         self.qlr = qlr
         #self.Q = Reltan(observation_space.sample().shape[0] + 1, h=qhidden, o=1, layers=qLayers)
         nin = observation_space.sample().shape[0] + 1
-        self.Q = nn.Sequential(nn.Linear(nin,qhidden), nn.ReLU6(), nn.ReLU6(), nn.ReLU6(), nn.Tanh(), nn.Tanh(), nn.Linear(qhidden,2), nn.Linear(2,1))
+        self.Q = nn.Sequential(nn.Linear(nin,qhidden), *[nn.ReLU() for a in range(qLayers)] , nn.Linear(qhidden,2), nn.Linear(2,1))
         if self.use_cuda:
             self.Q = self.Q.cuda()
         self.prev = {'observation':None, 'reward':None, 'action':None}
@@ -83,9 +84,9 @@ class QAgent(object):
         for action in range(self.action_space.n):
             Qs.append(self.Q(self.oa2qin(observation,action)).data[0])
         Qs = np.array(Qs)
-        if ret is 'a':
+        if ret == 'a':
             return int(np.argmax(Qs))
-        elif ret is 'q':
+        elif ret == 'q':
             return float(np.max(Qs))
         else:
             raise ValueError('Parameter "ret" must be either "a" or "q"')
@@ -109,7 +110,7 @@ class QAgent(object):
             self.trainQ([self.prev['observation'],observation], [self.prev['action'],action], [self.prev['reward'],reward], trainQIter)
 
         self.prev['observation'], self.prev['action'], self.prev['reward'] = observation, action, reward
-        self.epsilon = max(self.eld * self.epsilon, 0.1)
+        
         return action
 
     def oa2qin(self, observations, actions):
@@ -119,15 +120,17 @@ class QAgent(object):
         except TypeError as e:
             return Variable(torch.cat((self.tensorType(observations),self.tensorType([actions]))))
 
-    def trainQ(self, observations, actions, rewards, nIter):
+    def trainQ(self, observations, actions, rewards, nIter, decay=True):
         # observations = np.array(observations)
         # actions = np.array(actions)
         # rewards = np.array(rewards)
+        if decay:
+            self.epsilon = max(self.eld * self.epsilon, self.epsMin)
         self.replay.add(observations,actions,rewards)
         observations = self.tensorType(observations)
         actions = self.tensorType(actions)
         rewards = self.tensorType(rewards)
-        if observations.shape[0] is not rewards.shape[0]:
+        if observations.shape[0] != rewards.shape[0]:
             raise ValueError(
                 'shape[0]s do not match; rows of observations and rewards must align')
         qx = self.oa2qin(observations, actions)
@@ -159,7 +162,7 @@ def _train(model, x, y, nIter, use_cuda=True):
     #     y = y.type(torch.cuda.FloatTensor)
 
     criterion = torch.nn.MSELoss()
-    optimizer = torch.optim.SGD(model.parameters(), lr=0.001, momentum=0.1)
+    optimizer = torch.optim.SGD(model.parameters(), lr=0.0001, momentum=0.2)
     #optimizer = torch.optim.Adam(model.parameters(),lr=0.001)
     lossTrace = []
     for t in range(nIter):

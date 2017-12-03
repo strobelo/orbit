@@ -11,52 +11,104 @@ import pymunk.matplotlib_util
 from pymunk.vec2d import Vec2d
 from matplotlib import animation
 from IPython.display import HTML
+import gym
 
 def rotate(vec, theta=90):
-  v = np.array(vec)
-  rot = np.array([[np.cos(theta),-np.sin(theta)],[np.sin(theta),np.cos(theta)]])
-  return tuple(rot@v)
+    v = np.array(vec)
+    rot = np.array([[np.cos(theta),-np.sin(theta)],[np.sin(theta),np.cos(theta)]])
+    return tuple(rot@v)
 
-def gravity(a, b, G=6.674e-11):
-  '''force of gravity attracting object b to object a '''
-  aBody, aShape = a
-  bBody, bShape = b
-  distance = aBody.position - bBody.position
-  direction = distance.normalized()
-  magnitude = (G*aBody.mass*bBody.mass)/((distance.length)**2)
-  return direction * magnitude
+  def gravity(a, b, G=6.674e-11):
+    '''force of gravity attracting object b to object a '''
+    aBody, aShape = a
+    bBody, bShape = b
+    distance = aBody.position - bBody.position
+    direction = distance.normalized()
+    magnitude = (G*aBody.mass*bBody.mass)/((distance.length)**2)
+    return direction * magnitude
 
-def circle(mass, radius, position):
-  moment = pymunk.moment_for_circle(mass,0,radius,(0,0))
-  body = pymunk.Body(mass,moment)
-  shape = pymunk.Circle(body,radius)
-  body.position=position
-  body.start_position=Vec2d(position)
-  return body,shape
+  def circle(mass, radius, position):
+    moment = pymunk.moment_for_circle(mass,0,radius,(0,0))
+    body = pymunk.Body(mass,moment)
+    shape = pymunk.Circle(body,radius)
+    body.position=position
+    body.start_position=Vec2d(position)
+    return body,shape
 
-def init():
-    space.debug_draw(o)
-    return []
+class Planet(gym.env):
 
-def animate(dt):
-    #we run the animation with half speed intentionally to make it a little nicer to look at
-    
+  def __init__(self,dt=1/50/5):
+    space = pymunk.Space()
+    space.gravity = 0,0
+    space.damping = 0.999
+    self.space = space
+
+    planet = circle((15e15), 80, (300,300))
+    ball = circle(10, 10, (0,300))
+    self.planet = planet
+    self.ball = ball
+
+    space.add(*planet)
+    space.add(*ball)
+    self.dt = dt
+
+  def init():
+      space.debug_draw(o)
+      return []
+
+  def reinforce(self):
+    '''
+    TODO
+    '''
+    pass
+
+  def observe(self):
+    '''
+    TODO
+    '''
+    pass
+
+  def is_done(self):
+    '''
+    TODO
+    '''
+    return False
+
+  def step(self, action):
+    planet = self.planet
+    ball = self.ball
+    amag, adir = action
     fgrav = (ball[0],(gravity(planet,ball),(0,0)))
     fgrav[0].apply_impulse_at_local_point(*fgrav[1])
     
-    rot90velnorm = Vec2d(rotate(ball[0].velocity)).normalized()
-    force = (ball[0], ((tuple(100*rot90velnorm)),(0,0)))
+    rotvelnorm = Vec2d(rotate(ball[0].velocity), adir).normalized() # apply action direction
+    force = (ball[0], ((tuple(amag*rotvelnorm)),(0,0)))             # apply action magnitude
     force[0].apply_impulse_at_local_point(*force[1])
-    
-    space.step(1/50/5)
-    
-    ax.clear()
-    ax.set_xlim((0,600))
-    ax.set_ylim((0,600))
-    space.debug_draw(o)
-    ax.text(100,100,str(ball[0].velocity))
-    
-    return []
+    self.space.step(dt)
+
+    # TODO : CALCULATE REINFORCEMENT
+    observation, reward, done = self.observe(), self.reinforce(), self.is_done()
+    return observation, reward, done
+
+  def animate(dt):
+      #we run the animation with half speed intentionally to make it a little nicer to look at
+      
+      fgrav = (ball[0],(gravity(planet,ball),(0,0)))
+      fgrav[0].apply_impulse_at_local_point(*fgrav[1])
+      
+      rot90velnorm = Vec2d(rotate(ball[0].velocity)).normalized()
+      force = (ball[0], ((tuple(100*rot90velnorm)),(0,0)))
+      force[0].apply_impulse_at_local_point(*force[1])
+      
+      space.step(1/50/5)
+      
+      ax.clear()
+      ax.set_xlim((0,600))
+      ax.set_ylim((0,600))
+      space.debug_draw(o)
+      ax.text(100,100,str(ball[0].velocity))
+      
+      return []
 
 
 space = pymunk.Space()

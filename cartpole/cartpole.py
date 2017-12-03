@@ -1,3 +1,4 @@
+#!/s/bach/j/under/dstrobel/miniconda3/bin/python
 import argparse
 import logging
 import sys
@@ -5,6 +6,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import gym
 from gym import wrappers
+import time
 
 from agents import QAgent
 
@@ -41,10 +43,10 @@ if __name__ == '__main__':
 
     env.seed(0)
     #gammaF = lambda gp: 1 - 0.98*(1-gp)
-    gammaF = lambda gp: 0.99
-    agent = QAgent(env.action_space, env.observation_space, use_cuda=True, qlr=0.1, qLayers=2, qhidden=32, gammaF=gammaF,eld=0.99)
+    gammaF = lambda gp: 0.7
+    agent = QAgent(env.action_space, env.observation_space, use_cuda=True, qlr=0.15, qLayers=6, qhidden=32, gammaF=gammaF,eld=0.99993,replaySize=10000)
 
-    episode_count = 10000
+    episode_count = 20000
     reward = 0
     done = False
 
@@ -53,37 +55,46 @@ if __name__ == '__main__':
     # will be namespaced). You can also dump to a tempdir if you'd
     # like: tempfile.mkdtemp().
     outdir = '/tmp/qlr-results'
-    env = wrappers.Monitor(env, directory=outdir, force=False)
+    #env = wrappers.Monitor(env, directory=outdir, force=False)
     allRewards = []
     allActions = []
     observations, rewards, actions = [],[],[]
     oldo, oldr, olda = [],[],[]
-    for i in range(episode_count):
-        ob = env.reset()
-        while True:
-            action = agent.act(ob, reward)
-            
-            ob, reward, done, _ = env.step(action)
-            observations.append(ob)
-            rewards.append(reward)
-            actions.append(action)
-            if done:
-                break
-        allActions += (actions)
-        allRewards.append(sum(rewards))
-        agent.trainQ(observations,actions,rewards,64)
-        if not agent.replay.isEmpty():
-            agent.trainQ(*agent.replay.sample(min(i,1024)),48)
-        oldo, olda, oldr = observations, actions, rewards
-        observations, rewards, actions = [],[],[]
+    startTime = time.time()
+    printSteps = list(np.linspace(0,episode_count,episode_count/50,dtype=int))
+    p = printSteps.pop(0)
+    try:
+        for i in range(episode_count):
+            ob = env.reset()
+            while True:
+                action = agent.act(ob, reward)
+                
+                ob, reward, done, _ = env.step(action)
+                observations.append(ob)
+                rewards.append(reward)
+                actions.append(action)
+                if done:
+                    break
+            allActions += (actions)
+            allRewards.append(sum(rewards))
+            agent.trainQ(observations,actions,rewards,32)
+            if not agent.replay.isEmpty():
+                agent.trainQ(*agent.replay.sample(min(i,1024)),24, decay=False)
+            oldo, olda, oldr = observations, actions, rewards
+            observations, rewards, actions = [],[],[]
+            if i == p:
+                print('Episode {} complete; {:2f}s elapsed; epsilon={:3f}; Scored {}'.format(i,time.time()-startTime, agent.epsilon, allRewards[i]))
+                p = printSteps.pop(0)
 
 
-            # Note there's no env.render() here. But the environment still can open window and
-            # render if asked by env.monitor: it calls env.render('rgb_array') to record video.
-            # Video is not recorded every episode, see capped_cubic_video_schedule for details.
+                # Note there's no env.render() here. But the environment still can open window and
+                # render if asked by env.monitor: it calls env.render('rgb_array') to record video.
+                # Video is not recorded every episode, see capped_cubic_video_schedule for details.
+    except KeyboardInterrupt:
+        pass
     # Close the env and write monitor result info to disk
     r = np.array(allRewards)
-    print('Average Reward over 100 episodes: {}'.format(np.mean(r)))
+    print('Average Reward over {} episodes: {}'.format(episode_count,np.mean(r)))
     fig,ax=plt.subplots(1,3)
     ax[0].plot(r)
     ax[0].set_title('Reward Achieved')
